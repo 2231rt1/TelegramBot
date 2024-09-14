@@ -27,6 +27,7 @@ def format_help() -> str:
         "* <b>Записаться на процедуру</b>: 🗓 Я помогу найти мастера...\n"
         "* <b>Советы по уходу</b>: 💖 Я поделюсь секретами ухода за ногтями...\n"
         "* <b>Фотогалерея</b>: 📸 Хочешь вдохновиться? Посмотри фото...\n"
+        "* <b>Тест</b>: 💎 Какой стиль маникюра тебе подходит?\n"
         "* <b>Ногти и здоровье</b>: 🩺 Узнай о здоровье ногтей...\n"
         "* <b>Модные тренды</b>: 🔥 Я расскажу о самых модных тенденциях...\n"
         "* <b>Цены и услуги</b>: 💲 Узнай больше о стоимости услуг...\n\n"
@@ -41,13 +42,13 @@ def handle_user_query(message_text: str, chat_id: int, first_name: str):
         "Записаться на процедуру": "Let's schedule your appointment...",
         "Советы по уходу": "Here are some care tips for your nails...",
         "Фотогалерея": "Check out our photo gallery...",
+        "Тест": "Doing test...",
         "Ногти и здоровье": "Learn how nail health affects your well-being...",
         "Модные тренды": "Discover the latest manicure trends...",
         "Цены и услуги": "Find out about our prices and services...",
     }
 
-    response = responses.get(message_text, 
-                              f"Прости, {first_name}, я не совсем тебя понимаю. Напиши /help.")
+    response = responses.get(message_text, f"Прости, {first_name}, я не совсем тебя понимаю. Напиши /help.")
     send_message(chat_id, response)
 
 @bot.message_handler(commands=['start'])
@@ -66,13 +67,14 @@ def handle_help(message: types.Message):
 def create_help_markup() -> types.InlineKeyboardMarkup:
     """Create help menu markup."""
     buttons = [
-        ("Записаться на процедуру🗓", 'send'),
-        ("Хочу идеи для маникюра💅", 'send'),
-        ("Фотогалерея📸", 'send'),
-        ("Советы по уходу💖", 'send'),
-        ("Ногти и здоровье🩺", 'send'),
-        ("Модные тренды🔥", 'send'),
-        ("Цены и услуги💲", 'send'),
+        ("Хочу идеи для маникюра💅", 'ideas'),
+        ("Фотогалерея📸", 'gallery'),
+        ("Тест💎", 'test'),
+        ("Советы по уходу💖", 'care'),
+        ("Ногти и здоровье🩺", 'health'),
+        ("Модные тренды🔥", 'trends'),
+        ("Записаться на процедуру🗓", 'appointment'),
+        ("Цены и услуги💲", 'services'),
     ]
 
     markup = types.InlineKeyboardMarkup()
@@ -81,6 +83,27 @@ def create_help_markup() -> types.InlineKeyboardMarkup:
         markup.add(*(types.InlineKeyboardButton(text, callback_data=callback) for text, callback in row))
         
     return markup
+
+@bot.callback_query_handler(func=lambda callback: True)
+def callback_message(callback: types.CallbackQuery):
+    """Handle callback queries."""
+    chat_id = callback.message.chat.id
+    first_name = callback.from_user.first_name
+    data = callback.data
+
+    responses = {
+        "ideas": "Here are some ideas for your manicure...",
+        "appointment": "Let's schedule your appointment...",
+        "care": "Here are some care tips for your nails...",
+        "gallery": "Check out our photo gallery...",
+        "test": "Doing test...",
+        "health": "Learn how nail health affects your well-being...",
+        "trends": "Discover the latest manicure trends...",
+        "services": "Find out about our prices and services...",
+    }
+
+    response = responses.get(data, f"Прости, {first_name}, я не совсем тебя понимаю. Напиши /help.")
+    send_message(chat_id, response)
 
 @bot.message_handler(func=lambda message: True)  # Handle all other messages
 def process_user_input(message: types.Message):
