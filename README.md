@@ -28,6 +28,6 @@
 
 Контакты:
 
-* [Telegram]: [https://t.me/Awesomely0]
+* Telegram: [https://t.me/Awesomely0]
 
 Сделайте ваш маникюр идеальным с помощью нашего бота
