@@ -1,1 +1,1 @@
-"Hello world"
+from settings import TG_TOKEN
