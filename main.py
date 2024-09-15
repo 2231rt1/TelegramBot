@@ -12,9 +12,6 @@ def format_greeting(first_name: str) -> str:
     """Format the greeting message."""
     return (f"👋 Привет, {first_name}! Я твой помощник по маникюру! 💅\n"
             "С помощью меня ты можешь:\n\n"
-            "* 💡 Посмотреть идеи для дизайна\n"
-            "* 🗓 Записаться на процедуру к мастеру\n"
-            "* 💅 Получить советы по уходу за ногтями\n\n"
             "Напиши мне /help, чтобы узнать больше!")
 
 def format_help() -> str:
@@ -22,17 +19,7 @@ def format_help() -> str:
     return (
         "💅 Твой персональный эксперт по маникюру! ✨\n\n"
         "✨ <b>Хочешь идеальные ногти?</b> Я помогу! ✨\n\n"
-        "Просто напиши мне:\n\n"
-        "* <b>Хочу идеи для маникюра</b>: 💅 Я покажу тебе самые модные дизайны...\n"
-        "* <b>Записаться на процедуру</b>: 🗓 Я помогу найти мастера...\n"
-        "* <b>Советы по уходу</b>: 💖 Я поделюсь секретами ухода за ногтями...\n"
-        "* <b>Фотогалерея</b>: 📸 Хочешь вдохновиться? Посмотри фото...\n"
-        "* <b>Тест</b>: 💎 Какой стиль маникюра тебе подходит?\n"
-        "* <b>Ногти и здоровье</b>: 🩺 Узнай о здоровье ногтей...\n"
-        "* <b>Модные тренды</b>: 🔥 Я расскажу о самых модных тенденциях...\n"
-        "* <b>Цены и услуги</b>: 💲 Узнай больше о стоимости услуг...\n\n"
-        "Или выбери нужный <b><u>раздел</u></b> в меню бота! 😉\n"
-        "Начни прямо сейчас! ✨"
+        "Просто выбери нужный раздел в меню! 😉\n"
     )
 
 def get_response(message_text: str) -> str:
@@ -51,9 +38,10 @@ def get_response(message_text: str) -> str:
 
 @bot.message_handler(commands=['start'])
 def handle_start(message: types.Message):
-    """Handle the start command and send a greeting."""
+    """Handle the start command and send a greeting with buttons."""
     greeting_text = format_greeting(message.from_user.first_name)
-    send_message(message.chat.id, greeting_text)
+    markup = create_start_markup()
+    send_message(message.chat.id, greeting_text, reply_markup=markup)
 
 @bot.message_handler(commands=['help'])
 def handle_help(message: types.Message):
@@ -62,8 +50,8 @@ def handle_help(message: types.Message):
     markup = create_help_markup()
     send_message(message.chat.id, help_text, parse_mode='html', reply_markup=markup)
 
-def create_help_markup() -> types.InlineKeyboardMarkup:
-    """Create help menu markup."""
+def create_start_markup() -> types.InlineKeyboardMarkup:
+    """Create start menu markup with buttons."""
     buttons = [
         ("Хочу идеи для маникюра💅", 'Хочу идеи для маникюра'),
         ("Фотогалерея📸", 'Фотогалерея'),
@@ -81,6 +69,10 @@ def create_help_markup() -> types.InlineKeyboardMarkup:
         markup.add(*(types.InlineKeyboardButton(text, callback_data=callback) for text, callback in row))
         
     return markup
+
+def create_help_markup() -> types.InlineKeyboardMarkup:
+    """Create help menu markup."""
+    return create_start_markup()  # Reuse the same buttons for help
 
 @bot.callback_query_handler(func=lambda callback: True)
 def callback_message(callback: types.CallbackQuery):
