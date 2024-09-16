@@ -60,30 +60,42 @@ def handle_appointment_message(message: types.Message) -> None:
     today = datetime.today().strftime("%Y-%m-%d")
     tomorrow = (datetime.today() + timedelta(days=1)).strftime("%Y-%m-%d")
     dates = [today, tomorrow]
-    
+
     # Connect to the database
     conn = sqlite3.connect("appointments.db")
     c = conn.cursor()
-    
+
     # Get existing appointments for the next two days
     c.execute("SELECT appointment_date, appointment_time FROM appointments WHERE appointment_date IN (?, ?)", (today, tomorrow))
     existing_appointments = c.fetchall()
-    
+
+    # Check if the user has an existing appointment for the same date
+    user_id = message.chat.id
+    c.execute("SELECT * FROM appointments WHERE chat_id = ? AND appointment_date IN (?, ?)", (user_id, today, tomorrow))
+    existing_user_appointments = c.fetchall()
+
     # Create a set to store unavailable time slots
     unavailable_time_slots = set()
-    
+
     # Iterate over existing appointments and add time slots to the set
     for appointment in existing_appointments:
         date = appointment[0]
         time = appointment[1]
         unavailable_time_slots.add((date, time))
-    
+
+    # If the user has an existing appointment for the same date, add it to the unavailable time slots
+    if existing_user_appointments:
+        for appointment in existing_user_appointments:
+            date = appointment[1]
+            time = appointment[2]
+            unavailable_time_slots.add((date, time))
+
     # Create the appointment markup
     markup = create_appointment_markup(dates, unavailable_time_slots)
-    
+
     # Send the message with the markup
     send_message_with_markup(message.chat.id, "Выберите время для записи на процедуру:", markup)
-    
+
     # Close the database connection
     conn.close()
 
@@ -174,6 +186,15 @@ def handle_appointment_callback(callback: types.CallbackQuery) -> None:
     date = appointment_data[1]
     appointment_time = int(appointment_data[2])
     response = f"Вы выбрали {appointment_time}:00 для записи на процедуру в {date}."
+
+    # Insert the appointment into the database
+    conn = sqlite3.connect("appointments.db")
+    c = conn.cursor()
+    c.execute("INSERT INTO appointments (chat_id, appointment_date, appointment_time) VALUES (?, ?, ?)",
+              (chat_id, date, appointment_time))
+    conn.commit()
+    conn.close()
+
     bot.send_message(chat_id, response)
 
 @bot.message_handler(content_types=['text'])
