@@ -1,13 +1,33 @@
-from settings import TG_TOKEN
+import sqlite3
 from telebot import TeleBot, types
+from datetime import datetime, timedelta
+from dotenv import load_dotenv
+import os
+
+load_dotenv('.env')
+TG_TOKEN = os.getenv('TG_TOKEN')
 
 bot = TeleBot(TG_TOKEN)
 
-def send_message(chat_id: int, text: str, parse_mode: str = None, reply_markup: types.InlineKeyboardMarkup = None) -> None:
-    """Send a message to the user."""
-    bot.send_message(chat_id, text, parse_mode=parse_mode, reply_markup=reply_markup)
+def create_appointments_table() -> None:
+    """Create the appointments table if it doesn't exist."""
+    conn = sqlite3.connect("appointments.db")
+    c = conn.cursor()
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS appointments (
+            chat_id INTEGER,
+            appointment_date TEXT,
+            appointment_time INTEGER
+        )
+    """)
+    conn.commit()
+    conn.close()
 
-def format_greeting(first_name: str) -> str:
+def send_message_with_markup(chat_id: int, text: str, markup: types.ReplyKeyboardMarkup) -> None:
+    """Send a message to the user with a markup."""
+    bot.send_message(chat_id, text, parse_mode='html', reply_markup=markup)
+
+def format_greeting_message(first_name: str) -> str:
     """Format the greeting message."""
     return (
         f"Привет, {first_name}! Я твой помощник по маникюру! 💅\n"
@@ -18,7 +38,7 @@ def format_greeting(first_name: str) -> str:
         "Напиши мне /help, чтобы узнать больше!"
     )
 
-def format_help() -> str:
+def format_help_message() -> str:
     """Format the help message."""
     return (
         "Твой персональный эксперт по маникюру! ✨\n\n"
@@ -34,6 +54,38 @@ def format_help() -> str:
         "Или выбери нужный раздел в меню бота! 😉\n"
         "Начни прямо сейчас! ✨"
     )
+
+def handle_appointment_message(message: types.Message) -> None:
+    """Handle appointment message."""
+    today = datetime.today().strftime("%Y-%m-%d")
+    tomorrow = (datetime.today() + timedelta(days=1)).strftime("%Y-%m-%d")
+    dates = [today, tomorrow]
+    
+    # Connect to the database
+    conn = sqlite3.connect("appointments.db")
+    c = conn.cursor()
+    
+    # Get existing appointments for the next two days
+    c.execute("SELECT appointment_date, appointment_time FROM appointments WHERE appointment_date IN (?, ?)", (today, tomorrow))
+    existing_appointments = c.fetchall()
+    
+    # Create a set to store unavailable time slots
+    unavailable_time_slots = set()
+    
+    # Iterate over existing appointments and add time slots to the set
+    for appointment in existing_appointments:
+        date = appointment[0]
+        time = appointment[1]
+        unavailable_time_slots.add((date, time))
+    
+    # Create the appointment markup
+    markup = create_appointment_markup(dates, unavailable_time_slots)
+    
+    # Send the message with the markup
+    send_message_with_markup(message.chat.id, "Выберите время для записи на процедуру:", markup)
+    
+    # Close the database connection
+    conn.close()
 
 def create_help_markup() -> types.ReplyKeyboardMarkup:
     """Create help menu markup."""
@@ -62,6 +114,25 @@ def create_help_markup() -> types.ReplyKeyboardMarkup:
 
     return markup
 
+def create_appointment_markup(dates, unavailable_time_slots):
+    """Create appointment markup."""
+    markup = types.InlineKeyboardMarkup()
+    buttons = []
+    
+    # Iterate over dates and time slots
+    for date in dates:
+        for time in range(16, 23, 2):  # 16:00 to 22:00 with 2-hour intervals
+            # Check if the time slot is available
+            if (date, time) not in unavailable_time_slots:
+                button_text = f"{time}:00"
+                callback_data = f"appointment_{date}_{time}"
+                buttons.append(types.InlineKeyboardButton(button_text, callback_data=callback_data))
+    
+    # Add the buttons to the markup
+    markup.add(*buttons)
+    
+    return markup
+
 def get_response(message_text: str) -> str:
     """Get the appropriate response based on user input."""
     responses = {
@@ -71,7 +142,7 @@ def get_response(message_text: str) -> str:
         "советы по уходу": "Here are some care tips for your nails... 💖",
         "ногти и здоровье": "Learn how nail health affects your well-being... 🩺",
         "модные тренды": "Discover the latest manicure trends... 🔥",
-        "записаться на процедуру": "Let's schedule your appointment... 🗓",
+        "записаться на процедуру": handle_appointment_message,
         "цены и услуги": "Find out about our prices and services... 💲",
     }
     # Convert input to lowercase for case-insensitive matching
@@ -82,29 +153,38 @@ def get_response(message_text: str) -> str:
 
 @bot.message_handler(commands=['start'])
 def handle_start(message: types.Message) -> None:
-    """Handle the start command and send a greeting."""
-    greeting_text = format_greeting(message.from_user.first_name)
-    send_message(message.chat.id, greeting_text)
+    """Handle the start command and send the greeting message."""
+    first_name = message.from_user.first_name
+    greeting_text = format_greeting_message(first_name)
+    markup = create_help_markup()
+    send_message_with_markup(message.chat.id, greeting_text, markup)
 
 @bot.message_handler(commands=['help'])
 def handle_help(message: types.Message) -> None:
     """Handle the help command and send the help message."""
-    help_text = format_help()
+    help_text = format_help_message()
     markup = create_help_markup()
-    send_message(message.chat.id, help_text, parse_mode='html', reply_markup=markup)
+    send_message_with_markup(message.chat.id, help_text, markup)
 
-@bot.callback_query_handler(func=lambda callback: True)
-def callback_message(callback: types.CallbackQuery) -> None:
-    """Handle callback queries."""
+@bot.callback_query_handler(func=lambda callback: callback.data.startswith("appointment_"))
+def handle_appointment_callback(callback: types.CallbackQuery) -> None:
+    """Handle appointment callback queries."""
     chat_id = callback.message.chat.id
-    response = get_response(callback.data)
-    send_message(chat_id, response)
+    appointment_data = callback.data.split("_")
+    date = appointment_data[1]
+    appointment_time = int(appointment_data[2])
+    response = f"Вы выбрали {appointment_time}:00 для записи на процедуру в {date}."
+    bot.send_message(chat_id, response)
 
-@bot.message_handler(func=lambda message: True)  # Handle all other messages
-def process_user_input(message: types.Message) -> None:
-    """Process user input and handle queries."""
+@bot.message_handler(content_types=['text'])
+def handle_text_message(message: types.Message) -> None:
+    """Handle text messages and respond accordingly."""
     response = get_response(message.text)
-    send_message(message.chat.id, response)
+    if callable(response):
+        response(message)
+    else:
+        bot.send_message(message.chat.id, response)
 
 if __name__ == "__main__":
-    bot.polling(none_stop=True)
+    create_appointments_table()
+    bot.polling()
