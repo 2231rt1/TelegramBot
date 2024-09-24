@@ -1,16 +1,22 @@
 import sqlite3
+import os
 from datetime import datetime, timedelta
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
 from aiogram import Router
 from dotenv import load_dotenv
-import os
+
 
 # Загрузка токена из .env файла
-load_dotenv('.env')
+load_dotenv()
 TG_TOKEN = os.getenv('TG_TOKEN')
 
+if TG_TOKEN is None:
+    print("Токен бота не был загружен из файла .env")
+    exit()
+
+bot = Bot(token=TG_TOKEN)
 # Инициализация бота
 bot = Bot(token=TG_TOKEN)
 dp = Dispatcher()
@@ -52,7 +58,7 @@ def format_help_message() -> str:
         "Твой персональный эксперт по маникюру! ✨\n\n"
         "Просто напиши мне:\n\n"
         "* Хочу идеи для маникюра💅: Я покажу тебе самые модные дизайны...\n"
-        "* Фотогалерея📸: Хочешь вдохновиться? Посмотри фото...\n"
+        "* Видео галереям📸: Хочешь вдохновиться? Посмотри видео...\n"
         "* Тест💎: Какой стиль маникюра тебе подходит?\n"
         "* Советы по уходу💖: Я поделюсь секретами ухода за ногтями...\n"
         "* Ногти и здоровье🩺: Узнай о здоровье ногтей...\n"
@@ -65,7 +71,7 @@ def create_help_markup() -> ReplyKeyboardMarkup:
     """Создание клавиатуры для меню помощи."""
     buttons = [
         [types.KeyboardButton(text="Хочу идеи для маникюра💅"),
-         types.KeyboardButton(text="Фотогалерея📸")],
+         types.KeyboardButton(text="Видеогалерея📹")],
         [types.KeyboardButton(text="Тест💎"),
          types.KeyboardButton(text="Советы по уходу💖")],
         [types.KeyboardButton(text="Ногти и здоровье🩺"),
@@ -91,6 +97,22 @@ async def handle_help(message: types.Message):
     help_text = format_help_message()
     markup = create_help_markup()
     await send_message_with_markup(message.chat.id, help_text, markup)
+
+# Обработка кнопку Видеогалеря
+@router.message(lambda message: message.text.lower().startswith("видеогалерея"))
+async def handle_video_gallery_message(message: types.Message):
+    """Отправка видеороликов при нажатии на кнопку "Видеогалерея📹"."""
+    video_dir = "videos"
+    video_files = [
+        "ArchedSquare.MOV",
+        "Classik.MOV",
+        "LongAlmond.MOV",
+        "milk.MOV"
+    ]
+    for video_file in video_files:
+        video_path = os.path.join(video_dir, video_file)
+        await bot.send_video(message.chat.id, video=open(video_path, "rb"), caption="Видеогалерея")
+    await send_message_with_markup(message.chat.id,"Так же вы можете просмотреть больше видеороликов и фото в нашем телеграм канале `ССЫЛКА`")
 
 # Создание разметки для выбора времени записи
 def create_appointment_markup(dates, unavailable_time_slots):
